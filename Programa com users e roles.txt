@@ -1,0 +1,277 @@
+npm install express jsonwebtoken bcryptjs mongoose
+npm install --save-dev @types/express @types/jsonwebtoken @types/bcryptjs @types/mongoose
+
+import express from 'express';
+import mongoose from 'mongoose';
+import authRoutes from './routes/auth';
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use('/api/auth', authRoutes);
+
+mongoose.connect('mongodb://localhost:27017/mydb', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => {
+  console.log('Connected to MongoDB');
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch(err => console.error(err));
+
+
+import mongoose, { Document, Schema } from 'mongoose';
+
+export interface IUser extends Document {
+  username: string;
+  password: string;
+  role: string;
+}
+
+const UserSchema: Schema = new Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, required: true, enum: ['user', 'admin'] },
+});
+
+export default mongoose.model<IUser>('User', UserSchema);
+
+
+import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import User, { IUser } from '../models/User';
+
+const router = Router();
+
+router.post('/register', async (req, res) => {
+  const { username, password, role } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const newUser = new User({ username, password: hashedPassword, role });
+  await newUser.save();
+  res.status(201).send('User registered');
+});
+
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = await User.findOne({ username });
+  if (!user || !await bcrypt.compare(password, user.password)) {
+    return res.status(401).send('Invalid credentials');
+  }
+  const token = jwt.sign({ id: user._id, role: user.role }, 'secret', { expiresIn: '1h' });
+  res.json({ token });
+});
+
+export default router;
+
+
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+
+interface AuthRequest extends Request {
+  user?: any;
+}
+
+export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  if (!token) {
+    return res.status(401).send('Access denied');
+  }
+  try {
+    const decoded = jwt.verify(token, 'secret');
+    req.user = decoded;
+    next();
+  } catch (err) {
+    res.status(400).send('Invalid token');
+  }
+};
+
+export const authorize = (roles: string[]) => {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!roles.includes(req.user.role)) {
+      return res.status(403).send('Forbidden');
+    }
+    next();
+  };
+};
+
+
+import express from 'express';
+import { authenticate, authorize } from './middleware/auth';
+
+const app = express();
+
+app.get('/admin', authenticate, authorize(['admin']), (req, res) => {
+  res.send('Admin content');
+});
+
+app.get('/user', authenticate, authorize(['user', 'admin']), (req, res) => {
+  res.send('User content');
+});
+
+app.listen(3000, () => {
+  console.log('Server running on port 3000');
+});
+
+
+
+TESTE DO CÓDIGO:
+Configuração do Ambiente de Teste:
+Instale as dependências necessárias:
+npm install --save-dev jest supertest
+
+Configuração do Jest:
+Adicione um script de teste no seu package.json:
+JSON
+"scripts": {
+  "test": "jest"
+}
+
+
+Criação dos Testes:
+Crie uma pasta tests na raiz do seu projeto e adicione um arquivo de teste, por exemplo, auth.test.js:
+import request from 'supertest';
+import app from '../app'; // Certifique-se de exportar seu app no arquivo principal
+
+describe('Auth Routes', () => {
+  it('should register a new user', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({
+        username: 'testuser',
+        password: 'testpassword',
+        role: 'user'
+      });
+    expect(res.statusCode).toEqual(201);
+    expect(res.text).toContain('User registered');
+  });
+
+  it('should login an existing user', async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({
+        username: 'testuser',
+        password: 'testpassword'
+      });
+    expect(res.statusCode).toEqual(200);
+    expect(res.body).toHaveProperty('token');
+  });
+});
+
+
+Execução dos Testes:
+Execute os testes com o comando:
+npm test
+
+
+ORGANIZAÇÃO:
+Para organizar seu projeto Express e Mongoose, você pode seguir uma estrutura de pastas que facilita a manutenção e a escalabilidade. Aqui está uma sugestão de estrutura de pastas:
+/myapp
+│
+├── /src
+│   ├── /controllers
+│   │   └── authController.ts
+│   ├── /models
+│   │   └── User.ts
+│   ├── /routes
+│   │   └── authRoutes.ts
+│   ├── /middleware
+│   │   └── auth.ts
+│   ├── /config
+│   │   └── db.ts
+│   ├── app.ts
+│   └── server.ts
+│
+├── /tests
+│   └── auth.test.ts
+│
+├── package.json
+├── tsconfig.json
+└── .env
+
+
+Descrição das Pastas e Arquivos:
+src: Contém todo o código-fonte da aplicação.
+controllers: Contém a lógica dos controladores, como authController.ts.
+models: Contém os modelos Mongoose, como User.ts.
+routes: Contém as definições de rotas, como authRoutes.ts.
+middleware: Contém middlewares, como auth.ts.
+config: Contém arquivos de configuração, como db.ts para a conexão com o banco de dados.
+app.ts: Configuração principal do Express.
+server.ts: Inicialização do servidor.
+tests: Contém os testes da aplicação, como auth.test.ts.
+package.json: Contém as dependências e scripts do projeto.
+tsconfig.json: Configuração do TypeScript (se estiver usando TypeScript).
+.env: Arquivo para variáveis de ambiente.
+Exemplo de Conteúdo dos Arquivos:
+app.ts:
+import express from 'express';
+import authRoutes from './routes/authRoutes';
+
+const app = express();
+app.use(express.json());
+app.use('/api/auth', authRoutes);
+
+export default app;
+
+
+server.ts:
+import mongoose from 'mongoose';
+import app from './app';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const PORT = process.env.PORT || 3000;
+
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/mydb', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+}).then(() => {
+  console.log('Connected to MongoDB');
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}).catch(err => console.error(err));
+
+
+authRoutes.ts:
+import { Router } from 'express';
+import { register, login } from '../controllers/authController';
+
+const router = Router();
+
+router.post('/register', register);
+router.post('/login', login);
+
+export default router;
+
+
+authController.ts:
+import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import User from '../models/User';
+
+export const register = async (req: Request, res: Response) => {
+  const { username, password, role } = req.body;
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const newUser = new User({ username, password: hashedPassword, role });
+  await newUser.save();
+  res.status(201).send('User registered');
+};
+
+export const login = async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+  const user = await User.findOne({ username });
+  if (!user || !await bcrypt.compare(password, user.password)) {
+    return res.status(401).send('Invalid credentials');
+  }
+  const token = jwt.sign({ id: user._id, role: user.role }, 'secret', { expiresIn: '1h' });
+  res.json({ token });
+};
+
+
+

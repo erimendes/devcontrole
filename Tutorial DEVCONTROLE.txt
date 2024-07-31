@@ -1,0 +1,10 @@
+Como usar o Prisma com MongoDB:
+https://www.prisma.io/docs/getting-started/setup-prisma/start-from-scratch/mongodb-typescript-mongodb
+
+Schema MongoDB:
+https://authjs.dev/getting-started/adapters/prisma
+
+Instalar o Auth Prisma Adapter
+https://next-auth.js.org/getting-started/example
+https://authjs.dev/getting-started/adapters/prisma
+npm install @prisma/client @auth/prisma-adapter
